@@ -1,12 +1,37 @@
+using Aviqora.Api.Middleware;
+using Aviqora.Application;
+using Aviqora.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// 1. Application & Infrastructure servislerini IoC Container'a ekle
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
+
+// 2. Controller ve OpenAPI (Swagger) servislerini IoC Container'a kaydet
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
+
+// 2. CORS (Cross-Origin Resource Sharing) Politikası: Next.js Frontend (http://localhost:3000) erişimine izin ver
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowNextJsClient", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// 3. HTTP Request Pipeline Yapılandırması (Sıralama AŞIRI KRİTİKTİR!)
+
+// A. En tepede Global Exception Handler: Tüm boru hattında oluşacak hataları ilk sırada yakalar!
+app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -14,28 +39,15 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+// B. CORS Politikası
+app.UseCors("AllowNextJsClient");
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+app.UseAuthorization();
+
+// C. Controller Endpoint'lerini Maple
+app.MapControllers();
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+// Integration testlerinde WebApplicationFactory ile referans verebilmek için partial class tanımı
+public partial class Program { }
