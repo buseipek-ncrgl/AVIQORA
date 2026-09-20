@@ -1,0 +1,32 @@
+# .NET
+bin/
+obj/
+out/
+.vs/
+.vscode/
+*.user
+*.userosscache
+*.sln.docstates
+
+# Node / Web
+node_modules/
+.next/
+dist/
+build/
+.npm
+*.log
+
+# Environment & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.pfx
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
