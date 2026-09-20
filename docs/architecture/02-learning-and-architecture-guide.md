@@ -1,126 +1,117 @@
-# AVIQORA — Uçtan Uca Mimari, Katmanlar ve Öğrenme Rehberi
+# AVIQORA — Uçtan Uca Mimari, Öğrenme ve Mühendislik Rehberi
 
-> Bu doküman, **AVIQORA Havayolu Rezervasyon ve Operasyon Platformu** geliştirilirken kullanılan tüm mimari kararları, tasarım kalıplarını (Design Patterns), katmanlar arası ilişkiyi ve yazılan kritik dosyaları **hiç bilmeyen bir mühendise anlatır gibi** detaylandırır. Unutulduğunda başvuru rehberi olarak tasarlanmıştır.
+Bu doküman, **AVIQORA Flight Booking System** projesinde kullanılan tüm mimari kararların, katmanların, veritabanı stratejilerinin ve yazılan kodların **hiç bilmeyen bir mühendise sıfırdan anlatır gibi** kalıcı dokümantasyonudur. Geliştirilen her yeni özellikle birlikte güncellenir.
 
 ---
 
-## 🏛️ 1. Büyük Mimari Resim ve Katman Sorumlulukları
+## 🏛️ BÖLÜM 1: Büyük Resim (Clean Architecture & Modular Monolith)
 
-Projemiz **Clean Architecture** (Temiz Mimari) prensiplerine göre yapılandırılmış bir **Modular Monolith** mimarisidir.
+Bir kullanıcı tarayıcıdan (Next.js) veya mobil uygulamadan **"Uçuş Ara"** veya **"Bilet Satın Al"** dediğinde istek aşağıdaki sırayla ilerler:
 
 ```
-[🌐 İstemci: Next.js Web UI / Mobil Uygulama / PWA]
-                     │
-                     │ 1. HTTP Request (JSON Data)
-                     ▼
-┌──────────────────────────────────────────────────────────┐
-│ 1. Aviqora.Api (Web API & Middleware)                    │
-│ - Dış dünyaya kapıyı açan HTTP resepsiyon görevlisidir. │
-│ - Validation, Authorization ve Global Error Handling.   │
-└──────────────────────────┬───────────────────────────────┘
-                           │ C# DTO / Request
-                           ▼
-┌──────────────────────────────────────────────────────────┐
-│ 2. Aviqora.Application (İş Akışları / Use Cases)        │
-│ - Orkestra Şefidir. DB'den veri çeker, Domain'i çalıştırır│
-│ - DTO dönüşümlerini yapar, kararları yönetir.           │
-└──────────────────────────┬───────────────────────────────┘
-                           │ İş Kuralları & Invariants
-                           ▼
-┌──────────────────────────────────────────────────────────┐
-│ 3. Aviqora.Domain (Çekirdek Varlıklar & Anayasa)         │
-│ - Kalp/Çekirdek. Tamamen saf C#'tır (Pure C#).           │
-│ - Veritabanını, HTTP'yi veya JSON'u bilmez!              │
-└──────────────────────────┬───────────────────────────────┘
-                           │ Veri Saklama / Okuma
-                           ▼
-┌──────────────────────────────────────────────────────────┐
-│ 4. Aviqora.Infrastructure (PostgreSQL / EF Core)         │
-│ - Ambar Görevlisi. EF Core DbContext, Repositories,       │
-│ - Redis ve RabbitMQ altyapılarını içerir.               │
-└──────────────────────────────────────────────────────────┘
+[🌐 İstemci: Next.js / Mobil App]
+           │
+           │ 1. HTTP Request (JSON)
+           ▼
+[🎮 Aviqora.Api]  --> Controllers (HTTP Kapısı) & Global Exception Middleware
+           │
+           │ 2. DTO & Request
+           ▼
+[⚙️ Aviqora.Application]  --> Use Cases, Service'ler (Orkestra Şefleri) & DTO'lar
+           │
+           │ 3. İş Kuralları (Invariants)
+           ▼
+[❤️ Aviqora.Domain]  --> Pure C# Entities, Value Objects, Enums
+           │
+           │ 4. Veri Okuma / Yazma
+           ▼
+[💾 Aviqora.Infrastructure]  --> PostgreSQL, EF Core 9 DbContext, Repositories, Redis, RabbitMQ
 ```
 
----
-
-## 📱 2. Mobil Uyum & Veritabanı Stratejisi
-
-### A. Mobil Uygulama Desteği
-* Backend `ASP.NET Core Web API` olarak tasarlandığı için geriye HTML değil, saf **JSON verisi** döner.
-* Bu sayede yazılan API'ye **Next.js Web**, **Flutter/React Native Mobil App** veya **iOS/Android Native App** aynı adres üzerinden bağlanabilir. Backend tarafında hiçbir kod değişimi gerekmez.
-
-### B. Veritabanı Rol Dağılımı (PostgreSQL vs MongoDB)
-1. **PostgreSQL (Ana Veritabanı - Source of Truth):** Bilet, Koltuk, Uçuş, Yolcu ve Ödeme verilerinde kullanılır. Neden? %100 ACID Transaction garantisi ve veritabanı seviyesinde tutarlılık için.
-2. **MongoDB (Doküman & AI Veritabanı - V3 Aşamasında):** AI Seyahat Asistanı (Chatbot) sohbet geçmişi ve esnek JSON transkript logları için kullanılacaktır.
+### Katmanların Aşılmaz Kuralları:
+1. **`Aviqora.Domain` (Kalp):** Tamamen bağımsızdır. `EF Core`, `PostgreSQL`, `HTTP` veya `JSON` nedir bilmez. Sadece saf C# iş kurallarını tutar.
+2. **`Aviqora.Application` (Şef):** İşi kimin yapacağını (Repository) çağırır, Domain kurallarını çalıştırır, istemciye DTO döner.
+3. **`Aviqora.Infrastructure` (Ambar):** Veritabanı sorgularını (`EF Core`), önbelleği (`Redis`) ve mesaj kuyruğunu (`RabbitMQ`) yönetir.
+4. **`Aviqora.Api` (Resepsiyon):** HTTP isteklerini karşılar, yetki kontrolü yapar, hataları sarmalar.
 
 ---
 
-## 🔍 3. Katmanlar ve Kritik Dosyaların Satır Satır Analizi
+## 🔒 BÖLÜM 2: Güvenlik Mimarısı ve F12 (Geliştirici Araçları) Kuralları
 
-### Katman 1: `Aviqora.Domain` (Saf İş Kuralları)
+### A. F12 (İstemci) Katmanında Asla Görünmemesi Gerekenler
+1. **Secrets & Connection Strings:** PostgreSQL şifreleri, JWT key'leri, Redis/RabbitMQ bağlantı cümleleri istemciye sızdırılmaz.
+2. **Kritik İş Mantığı:** Bilet fiyatlandırma algoritmaları ve indirim mantığı tamamen backend'de çalışır.
+3. **Hassas Yolcu Verileri (PII):** Yolcunun TCKN / Pasaport numarası maskelenir veya yetkisiz kullanıcılara açılmaz.
+4. **Detaylı Stack Trace:** Sunucuda hata oluştuğunda veritabanı tablo adları veya C# satır numaraları F12'ye gönderilmez. **RFC 7807 ProblemDetails** formatında filtrelenmiş hata nesnesi dönülür.
 
-* **[`Seat.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Domain/Entities/Seat.cs):**
-  * `private set` kullanılarak kapselleme (Encapsulation) sağlandı. Dışarıdan yetkisiz `seat.Status = Occupied` yapılması engellendi. Durum değişimi sadece `Hold()`, `Occupy()`, `Release()` metotları ile yapılır.
-  * Otomatik artan `1, 2, 3` ID'ler yerine `Guid` kullanıldı (Tahmin edilerek veri sızdırılmasını engellemek için - ID Enumeration Defense).
-* **[`Money.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Domain/ValueObjects/Money.cs):**
-  * `readonly record struct` olarak tasarlandı. Miktar + Para Birimi ikilisini birlikte tutar. 100 TL ile 100 USD'nin yanlışlıkla toplanmasını engelleyen iş kuralına sahiptir.
-* **[`PNRCode.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Domain/ValueObjects/PNRCode.cs):**
-  * Regex (`^[A-Z0-9]{6}$`) ile istisnasız 6 haneli, büyük harf ve rakamdan oluşan bilet kodu garantisi verir.
-* **[`Booking.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Domain/Entities/Booking.cs):**
-  * Bilet yaşam döngüsünü (`Draft` -> `Held` -> `Confirmed` -> `Expired` / `Cancelled`) yöneten Aggregate Root'tur. Süresi dolmuş biletin onaylanmasını engeller.
+### B. Zero Trust (Sıfır Güven)
+* **Prensip 1: İstemciye (F12) Güvenme!** Kullanıcı mobilden de girse web'den de girse backend her isteği sıfırdan doğrular.
+* **Prensip 2: Resource Ownership (Kaynak Sahipliği):** Kullanıcı A, URL'den bilet ID'sini `101` yerine `102` yaparak başkasının biletini göremez. Backend `Booking.UserId == CurrentUserId` kontrolü yapar.
 
 ---
 
-### Katman 2: `Aviqora.Infrastructure` (Veritabanı & EF Core)
+## 📦 BÖLÜM 3: Domain Katmanı Tasarım Detayları (`Aviqora.Domain`)
 
-* **[`AviqoraDbContext.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Infrastructure/Persistence/AviqoraDbContext.cs):**
-  * EF Core 9 ORM köprümüzdür. `DbSet<T>` özellikleri ile C# nesnelerini SQL tablolarına bağlar. `ApplyConfigurationsFromAssembly` ile Fluent API konfigürasyonlarını otomatik yükler.
+### 1. `Seat.cs` (Koltuk Entity'si)
+* **Encapsulation (`private set`):** `seat.Status = Occupied` şeklinde dışarıdan müdahaleye kapalıdır.
+* **Durum Metotları (`Hold()`, `Occupy()`, `Release()`):** Koltuk durumu yalnızca bu metotlarla değiştirilebilir. Metot önce koltuğun müsait (`Available`) olup olmadığını kontrol eder.
+* **`Guid` ID Kullanımı:** Otomatik artan `1, 2, 3` ID'ler yerine `Guid` kullanılır (ID Tahmin/Enumeration saldırılarını engellemek için).
+
+### 2. `Money.cs` (Value Object - Para)
+* **Neden `record struct`?** C# `record struct` bellekte ışık hızında çalışır ve değer bazlı eşitlik (`==`) sağlar.
+* **Neden düz `decimal` değil?** 100 TL ile 100 USD'nin yanlışlıkla toplanmasını engellemek için miktar (`Amount`) + para birimi (`Currency`) birlikte tutulur.
+
+### 3. `PNRCode.cs` (Value Object - Rezervasyon Kodu)
+* **Regex Koruması:** `^[A-Z0-9]{6}$` kuralı ile PNR kodunun tam olarak 6 haneli, büyük harf ve rakamlardan oluşmasını garanti eder.
+
+### 4. `Booking.cs` (Aggregate Root - Bilet Rezervasyonu)
+* **Bilet Yaşam Döngüsü:** `Draft` -> `Held` (Koltuk tutuldu) -> `Confirmed` (Ödeme alındı) -> `Expired` (Süre doldu) / `Cancelled` (İptal edildi).
+
+---
+
+## 💾 BÖLÜM 4: Veritabanı ve Persistence Katmanı (`Aviqora.Infrastructure`)
+
+### 1. `AviqoraDbContext.cs`
+PostgreSQL ile C# varlıklarımız arasındaki ana köprüdür. `OnModelCreating` içerisinde `ApplyConfigurationsFromAssembly` kullanılarak Fluent API ayarları otomatik yüklenir.
+
+### 2. Fluent API Konfigürasyonları & Eşzamanlılık Koruması
 * **[`SeatConfiguration.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Infrastructure/Persistence/Configurations/SeatConfiguration.cs):**
-  * `builder.HasIndex(s => new { s.FlightId, s.SeatCode }).IsUnique();`
-  * **Eşzamanlılık Koruması (Race Condition Defense):** Aynı uçuşta aynı seat code'un ikincil olarak eklenmesini veritabanı seviyesinde engeller.
-* **Value Object Veritabanı Haritalaması:**
-  * `Money` nesnesi `.ComplexProperty()` ile SQL'de `base_price_amount` (decimal) ve `base_price_currency` (varchar) sütunlarına ayrılır.
-  * `PNRCode` nesnesi `.HasConversion()` ile SQL'de `pnr` (varchar(6)) sütununa dönüştürülür.
-* **[`FlightRepository.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Infrastructure/Persistence/Repositories/FlightRepository.cs) & [`BookingRepository.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Infrastructure/Persistence/Repositories/BookingRepository.cs):**
-  * Application katmanındaki arayüzleri uygulayarak veritabanı `Include` ve `LINQ` sorgularını çalıştırır.
+  ```csharp
+  builder.HasIndex(s => new { s.FlightId, s.SeatCode }).IsUnique();
+  ```
+  Aynı uçuşta iki tane "12A" koltuğunun oluşmasını engellemek için veritabanında **Unique Index** tanımlanmıştır. Bu bizim veritabanındaki son savunma hattımızdır.
+* **Value Object Dönüşümleri:**
+  * **`Money`:** `.ComplexProperty(f => f.BasePrice)` ile SQL'de `base_price_amount` (decimal) ve `base_price_currency` (varchar) olarak saklanır.
+  * **`PNRCode`:** `HasConversion(pnr => pnr.Value, str => new PNRCode(str))` ile SQL'de 6 haneli `pnr` varchar(6) olarak tutulur.
 
 ---
 
-### Katman 3: `Aviqora.Application` (DTO'lar & Servisler)
+## ⚙️ BÖLÜM 5: Application ve API Katmanı (`Aviqora.Application` & `Aviqora.Api`)
 
-* **DTO (Data Transfer Object) Zorunluluğu:**
-  * Domain nesneleri (`Flight`, `Booking`) asla doğrudan F12/API yanıtı olarak dönülmez!
-  * **Sebep:** Sonsuz döngü çökmesi (`Flight -> Seats -> Flight`), hassas veri gizliliği (TCKN maskeleme) ve veritabanı bağımsızlığı.
-  * [`FlightDto`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Application/DTOs/FlightDto.cs) ve [`BookingResponseDto`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Application/DTOs/BookingDto.cs) bu amaçla yazılmıştır.
-* **[`BookingService.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Application/Services/BookingService.cs):**
-  * Bilet oluşturma adımlarını sırayla yönetir: Uçuşu çeker -> Koltuğu kontrol edip tutar (`seat.Hold()`) -> PNR üretir -> DB'ye kaydeder -> DTO döner.
+### 1. DTO (Data Transfer Object) Katmanı
+* **Neden Entity'ler dışarı açılmaz?**
+  1. **Circular Reference Crash:** `Flight -> Seats -> Flight -> Seats...` sonsuz JSON serileştirme döngüsünü engellemek için.
+  2. **Veri Gizliliği:** İç veritabanı sütunlarını gizlemek için.
+  3. **Esneklik:** DB modeli değiştiğinde API sözleşmesini korumak için.
 
----
+### 2. Repository Pattern & Dependency Inversion Principle
+* `IFlightRepository` ve `IBookingRepository` arayüzleri `Aviqora.Application` katmanında tanımlanır.
+* Implementasyonları (`FlightRepository`, `BookingRepository`) `Aviqora.Infrastructure` katmanında EF Core ile yazılır.
 
-### Katman 4: `Aviqora.Api` (HTTPREST Endpoints & Middleware)
+### 3. Service Akışları (`FlightService.cs` & `BookingService.cs`)
+* Uçuş arama, koltuk haritası getirme, PNR üretme, koltuk tutma (`seat.Hold()`) ve bilet oluşturma akışları yürütülür.
 
-* **[`GlobalExceptionHandlerMiddleware.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Api/Middleware/GlobalExceptionHandlerMiddleware.cs):**
-  * HTTP istek boru hattının (Request Pipeline) en tepesinde durur. Oluşan tüm sistem hatalarını yakalar.
-  * **F12 Zero-Trust Güvenlik Kuralı:** 500 hatalarında hassas veritabanı ve C# stack trace bilgilerini istemciye sızdırmaz, standart **RFC 7807 ProblemDetails** hatası döner.
-* **[`FlightsController.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Api/Controllers/FlightsController.cs) & [`BookingsController.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Api/Controllers/BookingsController.cs):**
-  * HTTP GET/POST isteklerini karşılar, DTO alır ve Service katmanını tetikler.
-
----
-
-## 📊 4. Sorumluluk Karşılaştırma Özeti
-
-| Katman | Dosya Örneği | Görevi | Asla Yapmaması Gereken Şey |
-| :--- | :--- | :--- | :--- |
-| **Controller** | `BookingsController.cs` | HTTP isteğini karşılamak, Status Code dönmek (201 Created) | SQL yazmak, bilet fiyatı hesaplamak |
-| **Service** | `BookingService.cs` | Akışı yönetmek (Önce koltuk tut -> Sonra bilet üret -> Kaydet) | HTTP Header okumak, HTML üretmek |
-| **Domain** | `Booking.cs`, `Seat.cs` | "Geçersiz durumda bilet onaylanamaz!" kuralını çalıştırmak | Veritabanı kütüphanesi (`EF Core`) kullanmak |
-| **Repository** | `BookingRepository.cs` | Veritabanına SQL ile okuma/yazma yapmak | İstemci DTO'su üretmek |
+### 4. Controllers (`FlightsController.cs` & `BookingsController.cs`)
+* `GET /api/flights/search`: Şehir ve tarihe göre uçuş arar.
+* `GET /api/flights/{id}/seats`: Koltuk haritasını döner.
+* `POST /api/bookings`: Bilet rezervasyonu oluşturur.
+* `GET /api/bookings/{pnr}`: PNR ile bilet detaylarını getirir.
 
 ---
 
-## 🛠️ 5. Git Commit & Sürüm Disiplini
+## 📈 BÖLÜM 6: Git ve Sürüm Disiplini
 
-Projede atılan tüm commit'ler **Conventional Commits** standartlarına göre kategorize edilir:
-* `feat(domain)`: İş kuralları ve domain nesneleri.
-* `feat(api)`: Web API, DB Context, Repository ve Controller eklemeleri.
-* `docs(architecture)`: Mimari ve rehber doküman güncellemeleri.
+Projede yapılan her geliştirme Conventional Commits standartlarına uygun olarak committen geçirilir:
+* `feat(domain)`: Core varlıklar ve bilet yaşam döngüsü.
+* `docs(architecture)`: Mimari dokümanlar ve güvenlik kuralları.
+* `feat(api)`: EF Core, DbContext, Migrations, Application DTO/Services ve Controllers.
