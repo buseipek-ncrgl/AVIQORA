@@ -33,7 +33,7 @@ public class GlobalExceptionHandlerMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "HTTP isteği işlenirken işlenmeyen bir hata oluştu: {Message}", ex.Message);
+            _logger.LogError(ex, "HTTP isteği işlenirken hata oluştu: {Message} | StackTrace: {StackTrace}", ex.Message, ex.StackTrace);
             await HandleExceptionAsync(context, ex);
         }
     }

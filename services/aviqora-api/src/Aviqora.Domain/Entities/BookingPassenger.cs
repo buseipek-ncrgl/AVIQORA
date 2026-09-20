@@ -13,11 +13,15 @@ public class BookingPassenger
 
     private BookingPassenger() { }
 
-    public BookingPassenger(Guid bookingId, Guid passengerId, Guid? seatId = null)
+    public BookingPassenger(Guid bookingId, Passenger passenger, Guid? seatId = null)
     {
+        if (passenger == null)
+            throw new ArgumentNullException(nameof(passenger));
+
         Id = Guid.NewGuid();
         BookingId = bookingId;
-        PassengerId = passengerId;
+        PassengerId = passenger.Id;
+        Passenger = passenger;
         SeatId = seatId;
     }
 

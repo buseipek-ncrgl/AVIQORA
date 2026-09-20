@@ -37,7 +37,7 @@ public class Booking
             throw new InvalidOperationException($"Cannot add passenger when booking status is {Status}.");
         }
 
-        _bookingPassengers.Add(new BookingPassenger(Id, passenger.Id, seatId));
+        _bookingPassengers.Add(new BookingPassenger(Id, passenger, seatId));
     }
 
     public void Hold()

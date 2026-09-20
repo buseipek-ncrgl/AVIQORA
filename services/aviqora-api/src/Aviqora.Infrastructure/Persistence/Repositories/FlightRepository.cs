@@ -36,15 +36,26 @@ public class FlightRepository : IFlightRepository
         DateTime departureDate,
         CancellationToken cancellationToken = default)
     {
-        var startOfDay = departureDate.Date.ToUniversalTime();
+        var originUpper = originCode.ToUpperInvariant();
+        var destUpper = destinationCode.ToUpperInvariant();
+
+        var originAirport = await _dbContext.Airports.FirstOrDefaultAsync(a => a.Code == originUpper, cancellationToken);
+        var destAirport = await _dbContext.Airports.FirstOrDefaultAsync(a => a.Code == destUpper, cancellationToken);
+
+        if (originAirport == null || destAirport == null)
+        {
+            return new List<Flight>();
+        }
+
+        var startOfDay = DateTime.SpecifyKind(departureDate.Date, DateTimeKind.Utc);
         var endOfDay = startOfDay.AddDays(1).AddTicks(-1);
 
         return await _dbContext.Flights
             .Include(f => f.OriginAirport)
             .Include(f => f.DestinationAirport)
             .Include(f => f.Seats)
-            .Where(f => f.OriginAirport != null && f.OriginAirport.Code == originCode.ToUpper() &&
-                        f.DestinationAirport != null && f.DestinationAirport.Code == destinationCode.ToUpper() &&
+            .Where(f => f.OriginAirportId == originAirport.Id &&
+                        f.DestinationAirportId == destAirport.Id &&
                         f.DepartureTime >= startOfDay && f.DepartureTime <= endOfDay)
             .ToListAsync(cancellationToken);
     }

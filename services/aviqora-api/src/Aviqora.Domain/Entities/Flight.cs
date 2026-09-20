@@ -51,6 +51,9 @@ public class Flight
 
     public void AddSeat(Seat seat)
     {
+        if (_seats.Contains(seat))
+            return;
+
         if (_seats.Any(s => s.SeatCode.Equals(seat.SeatCode, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException($"Seat {seat.SeatCode} already exists on flight {FlightNumber}.");

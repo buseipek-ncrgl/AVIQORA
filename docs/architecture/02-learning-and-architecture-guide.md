@@ -30,7 +30,7 @@ Bir kullanıcı tarayıcıdan (Next.js) veya mobil uygulamadan **"Uçuş Ara"** 
 
 ### Katmanların Aşılmaz Kuralları:
 1. **`Aviqora.Domain` (Kalp):** Tamamen bağımsızdır. `EF Core`, `PostgreSQL`, `HTTP` veya `JSON` nedir bilmez. Sadece saf C# iş kurallarını tutar.
-2. **`Aviqora.Application` (Şef):** İşi kimin yapacağını (Repository) çağırır, Domain kurallarını çalıştırır, istemciye DTO döner.
+2. **`Aviqora.Application` (Şef):** İshi kimin yapacağını (Repository) çağırır, Domain kurallarını çalıştırır, istemciye DTO döner.
 3. **`Aviqora.Infrastructure` (Ambar):** Veritabanı sorgularını (`EF Core`), önbelleği (`Redis`) ve mesaj kuyruğunu (`RabbitMQ`) yönetir.
 4. **`Aviqora.Api` (Resepsiyon):** HTTP isteklerini karşılar, yetki kontrolü yapar, hataları sarmalar.
 
@@ -64,12 +64,13 @@ Bir kullanıcı tarayıcıdan (Next.js) veya mobil uygulamadan **"Uçuş Ara"** 
 ### 3. `PNRCode.cs` (Value Object - Rezervasyon Kodu)
 * **Regex Koruması:** `^[A-Z0-9]{6}$` kuralı ile PNR kodunun tam olarak 6 haneli, büyük harf ve rakamlardan oluşmasını garanti eder.
 
-### 4. `Booking.cs` (Aggregate Root - Bilet Rezervasyonu)
+### 4. `Booking.cs` & `BookingPassenger.cs` (Bilet Rezervasyonu ve Cascade Insert)
 * **Bilet Yaşam Döngüsü:** `Draft` -> `Held` (Koltuk tutuldu) -> `Confirmed` (Ödeme alındı) -> `Expired` (Süre doldu) / `Cancelled` (İptal edildi).
+* **EF Core Cascade Navigation:** `BookingPassenger` oluşturulurken `Passenger` entity referansı verilir (`new BookingPassenger(Id, passenger, seatId)`). Böylece EF Core bileti kaydederken yolcuyu veritabanına otomatik ekler (Foreign Key Violational crash engellenir).
 
 ---
 
-## 💾 BÖLÜM 4: Veritabanı ve Persistence Katmanı (`Aviqora.Infrastructure`)
+## 💾 BÖLÜM 4: Veritabanı, Persistence ve DataSeeder (`Aviqora.Infrastructure`)
 
 ### 1. `AviqoraDbContext.cs`
 PostgreSQL ile C# varlıklarımız arasındaki ana köprüdür. `OnModelCreating` içerisinde `ApplyConfigurationsFromAssembly` kullanılarak Fluent API ayarları otomatik yüklenir.
@@ -84,28 +85,27 @@ PostgreSQL ile C# varlıklarımız arasındaki ana köprüdür. `OnModelCreating
   * **`Money`:** `.ComplexProperty(f => f.BasePrice)` ile SQL'de `base_price_amount` (decimal) ve `base_price_currency` (varchar) olarak saklanır.
   * **`PNRCode`:** `HasConversion(pnr => pnr.Value, str => new PNRCode(str))` ile SQL'de 6 haneli `pnr` varchar(6) olarak tutulur.
 
+### 3. `DataSeeder.cs` (Örnek Veri Yükleyici)
+📌 **Konum:** [`Aviqora.Infrastructure/Persistence/DataSeeder.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Infrastructure/Persistence/DataSeeder.cs)
+* Uygulama kalktığında veritabanında havalimanı ve uçuş var mı kontrol eder.
+* Boş ise otomatik olarak IST, SAW, BER, LHR havalimanlarını, TK1984 & VF2026 uçuşlarını ve Business/Economy koltuk haritalarını veritabanına yükler.
+
 ---
 
-## ⚙️ BÖLÜM 5: Application ve API Katmanı (`Aviqora.Application` & `Aviqora.Api`)
+## ⚙️ BÖLÜM 5: Application, Controllers & Integration Testing
 
 ### 1. DTO (Data Transfer Object) Katmanı
-* **Neden Entity'ler dışarı açılmaz?**
-  1. **Circular Reference Crash:** `Flight -> Seats -> Flight -> Seats...` sonsuz JSON serileştirme döngüsünü engellemek için.
-  2. **Veri Gizliliği:** İç veritabanı sütunlarını gizlemek için.
-  3. **Esneklik:** DB modeli değiştiğinde API sözleşmesini korumak için.
+* Sonsuz döngü çökmesini (`Circular Reference Crash`) ve PII sızıntılarını engellemek için `FlightDto`, `SeatDto`, `BookingResponseDto` yazılmıştır.
 
-### 2. Repository Pattern & Dependency Inversion Principle
-* `IFlightRepository` ve `IBookingRepository` arayüzleri `Aviqora.Application` katmanında tanımlanır.
-* Implementasyonları (`FlightRepository`, `BookingRepository`) `Aviqora.Infrastructure` katmanında EF Core ile yazılır.
+### 2. Service & Repository Akışları
+* `FlightService` ve `BookingService` nesneleri `IFlightRepository` ve `IBookingRepository` üzerinden veritabanı sorgularını çalıştırır.
+* Uçuş arama metodunda ([`FlightRepository.cs`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/src/Aviqora.Infrastructure/Persistence/Repositories/FlightRepository.cs)) SQL JOIN sorgusu performans amacıyla indeksli `OriginAirportId` üzerinden optimize edilmiştir.
 
-### 3. Service Akışları (`FlightService.cs` & `BookingService.cs`)
-* Uçuş arama, koltuk haritası getirme, PNR üretme, koltuk tutma (`seat.Hold()`) ve bilet oluşturma akışları yürütülür.
-
-### 4. Controllers (`FlightsController.cs` & `BookingsController.cs`)
-* `GET /api/flights/search`: Şehir ve tarihe göre uçuş arar.
-* `GET /api/flights/{id}/seats`: Koltuk haritasını döner.
-* `POST /api/bookings`: Bilet rezervasyonu oluşturur.
-* `GET /api/bookings/{pnr}`: PNR ile bilet detaylarını getirir.
+### 3. Integration Testing (`Aviqora.IntegrationTests`)
+📌 **Konum:** [`Aviqora.IntegrationTests/`](file:///c:/Users/Dell/Documents/PROJECT/Flight%20Booking%20System/services/aviqora-api/tests/Aviqora.IntegrationTests/)
+* **`Microsoft.AspNetCore.Mvc.Testing` & `WebApplicationFactory<Program>`:** Gerçek HTTP istekleriyle API'mizi in-memory çalıştırmamızı sağlar.
+* **SQLite In-Memory Provider:** EF Core 9 `ComplexProperty` özelliğini destekleyen ilişkisel test veritabanı.
+* **Test Sonuçları:** 4 Entegrasyon testi + 14 Birim testi = **18/18 (%100 Başarılı Passed)**.
 
 ---
 
@@ -114,4 +114,4 @@ PostgreSQL ile C# varlıklarımız arasındaki ana köprüdür. `OnModelCreating
 Projede yapılan her geliştirme Conventional Commits standartlarına uygun olarak committen geçirilir:
 * `feat(domain)`: Core varlıklar ve bilet yaşam döngüsü.
 * `docs(architecture)`: Mimari dokümanlar ve güvenlik kuralları.
-* `feat(api)`: EF Core, DbContext, Migrations, Application DTO/Services ve Controllers.
+* `feat(api)`: EF Core, DbContext, Migrations, Application DTO/Services, DataSeeder, Integration Tests ve Controllers.

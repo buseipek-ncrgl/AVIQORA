@@ -1,6 +1,7 @@
 using Aviqora.Api.Middleware;
 using Aviqora.Application;
 using Aviqora.Infrastructure;
+using Aviqora.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,6 +36,9 @@ app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+
+    // Veritabanını otomatik tohumla (Seeder)
+    await DataSeeder.SeedAsync(app.Services);
 }
 
 app.UseHttpsRedirection();
