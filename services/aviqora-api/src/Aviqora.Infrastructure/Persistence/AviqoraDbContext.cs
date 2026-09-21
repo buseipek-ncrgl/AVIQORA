@@ -19,6 +19,7 @@ public class AviqoraDbContext : DbContext
     public DbSet<Passenger> Passengers => Set<Passenger>();
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<BookingPassenger> BookingPassengers => Set<BookingPassenger>();
+    public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

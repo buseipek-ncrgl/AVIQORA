@@ -39,6 +39,9 @@ public static class DependencyInjection
 
         services.AddScoped<Application.Common.Interfaces.IFlightRepository, Persistence.Repositories.FlightRepository>();
         services.AddScoped<Application.Common.Interfaces.IBookingRepository, Persistence.Repositories.BookingRepository>();
+        services.AddScoped<Application.Common.Interfaces.IUserRepository, Persistence.Repositories.UserRepository>();
+        services.AddScoped<Application.Common.Interfaces.IPasswordHasher, Security.PasswordHasher>();
+        services.AddScoped<Application.Common.Interfaces.IJwtTokenGenerator, Security.JwtTokenGenerator>();
 
         return services;
     }

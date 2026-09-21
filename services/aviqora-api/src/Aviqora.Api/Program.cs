@@ -1,7 +1,10 @@
+using System.Text;
 using Aviqora.Api.Middleware;
 using Aviqora.Application;
 using Aviqora.Infrastructure;
 using Aviqora.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,7 +17,28 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
-// 2. CORS (Cross-Origin Resource Sharing) Politikası: Next.js Frontend (http://localhost:3000) erişimine izin ver
+// 3. JWT Authentication & Bearer Token Doğrulama Ayarları
+var secretKey = builder.Configuration["Jwt:SecretKey"] 
+    ?? "AVIQORA_SUPER_SECRET_SECURITY_KEY_FOR_JWT_SIGNING_2026_VERY_SECURE!";
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "AviqoraApi",
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "AviqoraClient",
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// 4. CORS Politikası: Next.js Frontend (http://localhost:3000) erişimine izin ver
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowNextJsClient", policy =>
@@ -28,9 +52,9 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// 3. HTTP Request Pipeline Yapılandırması (Sıralama AŞIRI KRİTİKTİR!)
+// 5. HTTP Request Pipeline Yapılandırması (Sıralama AŞIRI KRİTİKTİR!)
 
-// A. En tepede Global Exception Handler: Tüm boru hattında oluşacak hataları ilk sırada yakalar!
+// A. En tepede Global Exception Handler
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
 if (app.Environment.IsDevelopment())
@@ -46,9 +70,11 @@ app.UseHttpsRedirection();
 // B. CORS Politikası
 app.UseCors("AllowNextJsClient");
 
+// C. Kimlik Doğrulama (AuthN) -> Yetkilendirme (AuthZ) Sıralaması Hayatidir!
+app.UseAuthentication();
 app.UseAuthorization();
 
-// C. Controller Endpoint'lerini Maple
+// D. Controller Endpoint'lerini Maple
 app.MapControllers();
 
 app.Run();
