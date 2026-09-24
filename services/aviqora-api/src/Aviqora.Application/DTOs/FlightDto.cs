@@ -12,14 +12,18 @@ public record SeatDto(
 public record FlightDto(
     Guid Id,
     string FlightNumber,
-    string OriginAirportCode,
-    string OriginAirportCity,
-    string DestinationAirportCode,
-    string DestinationAirportCity,
+    string DepartureAirportCode,
+    string DepartureAirportName,
+    string ArrivalAirportCode,
+    string ArrivalAirportName,
     DateTime DepartureTime,
     DateTime ArrivalTime,
-    decimal BasePriceAmount,
-    string Currency,
-    string AircraftType,
-    int AvailableSeatCount
+    decimal PriceAmount,
+    string PriceCurrency,
+    string AircraftModel,
+    int AvailableSeatsCount,
+    string AirlineName = "Aviqora Airways",
+    string OriginAirportCode = "",
+    string DestinationAirportCode = "",
+    string AirlineLogoUrl = ""
 );

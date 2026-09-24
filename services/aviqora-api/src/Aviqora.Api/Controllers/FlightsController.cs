@@ -16,16 +16,23 @@ public class FlightsController : ControllerBase
     }
 
     /// <summary>
-    /// Uçuş arama endpoint'i. Origin, Destination ve DepartureDate parametrelerini alır.
+    /// Uçuş arama endpoint'i. Origin/FromCode, Destination/ToCode ve DepartureDate/Date parametrelerini alır.
     /// </summary>
     [HttpGet("search")]
     public async Task<ActionResult<List<FlightDto>>> SearchFlights(
-        [FromQuery] string origin,
-        [FromQuery] string destination,
-        [FromQuery] DateTime date,
+        [FromQuery] string? origin,
+        [FromQuery] string? destination,
+        [FromQuery] DateTime? date,
+        [FromQuery] string? fromCode,
+        [FromQuery] string? toCode,
+        [FromQuery] DateTime? departureDate,
         CancellationToken cancellationToken)
     {
-        var request = new FlightSearchRequestDto(origin, destination, date);
+        var finalOrigin = !string.IsNullOrWhiteSpace(fromCode) ? fromCode : origin ?? "IST";
+        var finalDest = !string.IsNullOrWhiteSpace(toCode) ? toCode : destination ?? "BER";
+        var finalDate = departureDate ?? date ?? DateTime.Today.AddDays(1);
+
+        var request = new FlightSearchRequestDto(finalOrigin, finalDest, finalDate);
         var result = await _flightService.SearchFlightsAsync(request, cancellationToken);
         return Ok(result);
     }
@@ -38,5 +45,15 @@ public class FlightsController : ControllerBase
     {
         var seats = await _flightService.GetSeatsByFlightIdAsync(id, cancellationToken);
         return Ok(seats);
+    }
+
+    /// <summary>
+    /// Yeni uçuş seferi ekleme (Admin).
+    /// </summary>
+    [HttpPost]
+    public async Task<ActionResult<FlightDto>> CreateFlight([FromBody] FlightDto flightDto, CancellationToken cancellationToken)
+    {
+        var created = await _flightService.CreateFlightAsync(flightDto, cancellationToken);
+        return Ok(created);
     }
 }

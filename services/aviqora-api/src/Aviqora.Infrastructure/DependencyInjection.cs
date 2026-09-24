@@ -38,10 +38,15 @@ public static class DependencyInjection
         }
 
         services.AddScoped<Application.Common.Interfaces.IFlightRepository, Persistence.Repositories.FlightRepository>();
+        services.AddScoped<Application.Common.Interfaces.IAirportRepository, Persistence.Repositories.AirportRepository>();
         services.AddScoped<Application.Common.Interfaces.IBookingRepository, Persistence.Repositories.BookingRepository>();
         services.AddScoped<Application.Common.Interfaces.IUserRepository, Persistence.Repositories.UserRepository>();
         services.AddScoped<Application.Common.Interfaces.IPasswordHasher, Security.PasswordHasher>();
         services.AddScoped<Application.Common.Interfaces.IJwtTokenGenerator, Security.JwtTokenGenerator>();
+        services.AddScoped<Application.Common.Interfaces.IEventBus, Messaging.RabbitMqEventBus>();
+        services.AddSingleton<Application.Common.Interfaces.ICacheService, Caching.InMemoryCacheService>();
+        services.AddSingleton<Application.Common.Interfaces.IAuditLogService, Audit.MongoAuditLogService>();
+        services.AddSingleton<ML.IFlightMlEngine, ML.FlightMlEngine>();
 
         return services;
     }

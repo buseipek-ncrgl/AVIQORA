@@ -1,0 +1,25 @@
+# Multi-stage build for C# .NET 9 Aviqora API
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+# Copy project files and restore dependencies
+COPY ["services/aviqora-api/src/Aviqora.Api/Aviqora.Api.csproj", "Aviqora.Api/"]
+COPY ["services/aviqora-api/src/Aviqora.Application/Aviqora.Application.csproj", "Aviqora.Application/"]
+COPY ["services/aviqora-api/src/Aviqora.Domain/Aviqora.Domain.csproj", "Aviqora.Domain/"]
+COPY ["services/aviqora-api/src/Aviqora.Infrastructure/Aviqora.Infrastructure.csproj", "Aviqora.Infrastructure/"]
+
+RUN dotnet restore "Aviqora.Api/Aviqora.Api.csproj"
+
+# Copy full source and publish release build
+COPY services/aviqora-api/src/ .
+RUN dotnet publish "Aviqora.Api/Aviqora.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+WORKDIR /app
+EXPOSE 5000
+EXPOSE 5001
+
+ENV ASPNETCORE_URLS=http://+:5000
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "Aviqora.Api.dll"]

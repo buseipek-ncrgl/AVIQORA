@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Relational Database Engine
+  postgres:
+    image: postgres:16-alpine
+    container_name: aviqora-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: aviqora_user
+      POSTGRES_PASSWORD: aviqora_secure_password_2026
+      POSTGRES_DB: aviqora_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aviqora_user -d aviqora_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis In-Memory Cache Engine
+  redis:
+    image: redis:7-alpine
+    container_name: aviqora-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Aviqora C# .NET 9 Core Enterprise API Service
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.api
+    container_name: aviqora-api
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=aviqora_db;Username=aviqora_user;Password=aviqora_secure_password_2026
+      - Redis__ConnectionString=redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Next.js Web Frontend Service
+  web:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.web
+    container_name: aviqora-web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5000/api
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:

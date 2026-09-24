@@ -50,13 +50,27 @@ public class FlightRepository : IFlightRepository
         var startOfDay = DateTime.SpecifyKind(departureDate.Date, DateTimeKind.Utc);
         var endOfDay = startOfDay.AddDays(1).AddTicks(-1);
 
-        return await _dbContext.Flights
+        var flightsOnDate = await _dbContext.Flights
             .Include(f => f.OriginAirport)
             .Include(f => f.DestinationAirport)
             .Include(f => f.Seats)
             .Where(f => f.OriginAirportId == originAirport.Id &&
                         f.DestinationAirportId == destAirport.Id &&
                         f.DepartureTime >= startOfDay && f.DepartureTime <= endOfDay)
+            .ToListAsync(cancellationToken);
+
+        if (flightsOnDate.Count > 0)
+        {
+            return flightsOnDate;
+        }
+
+        // Fallback: Return all flights for origin -> destination regardless of exact date
+        return await _dbContext.Flights
+            .Include(f => f.OriginAirport)
+            .Include(f => f.DestinationAirport)
+            .Include(f => f.Seats)
+            .Where(f => f.OriginAirportId == originAirport.Id &&
+                        f.DestinationAirportId == destAirport.Id)
             .ToListAsync(cancellationToken);
     }
 

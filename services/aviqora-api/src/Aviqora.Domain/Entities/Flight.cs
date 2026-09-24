@@ -12,6 +12,7 @@ public class Flight
     public DateTime ArrivalTime { get; private set; }
     public Money BasePrice { get; private set; }
     public string AircraftType { get; private set; } = null!; // e.g., "Airbus A320"
+    public string AirlineName { get; private set; } = "Aviqora Airways";
 
     // Navigation Properties
     public Airport? OriginAirport { get; private set; }
@@ -28,7 +29,8 @@ public class Flight
         DateTime departureTime,
         DateTime arrivalTime,
         Money basePrice,
-        string aircraftType)
+        string aircraftType,
+        string airlineName = "Aviqora Airways")
     {
         if (string.IsNullOrWhiteSpace(flightNumber))
             throw new ArgumentException("Flight number cannot be empty.", nameof(flightNumber));
@@ -47,6 +49,7 @@ public class Flight
         ArrivalTime = arrivalTime;
         BasePrice = basePrice;
         AircraftType = aircraftType;
+        AirlineName = string.IsNullOrWhiteSpace(airlineName) ? "Aviqora Airways" : airlineName;
     }
 
     public void AddSeat(Seat seat)

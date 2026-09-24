@@ -12,8 +12,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
-// 2. Controller ve OpenAPI (Swagger) servislerini IoC Container'a kaydet
+// 2. Controller, HttpClient ve OpenAPI (Swagger) servislerini IoC Container'a kaydet
 builder.Services.AddControllers();
+builder.Services.AddHttpClient();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
@@ -38,12 +39,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// 4. CORS Politikası: Next.js Frontend (http://localhost:3000) erişimine izin ver
+// 4. CORS Politikası: Localhost frontend ve mobil istemcilere tam erişim ver
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowNextJsClient", policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.SetIsOriginAllowed(_ => true)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -65,9 +66,7 @@ if (app.Environment.IsDevelopment())
     await DataSeeder.SeedAsync(app.Services);
 }
 
-app.UseHttpsRedirection();
-
-// B. CORS Politikası
+// B. CORS Politikası (Her zaman HTTPS Yönlendirmesinden ÖNCE Olmalıdır!)
 app.UseCors("AllowNextJsClient");
 
 // C. Kimlik Doğrulama (AuthN) -> Yetkilendirme (AuthZ) Sıralaması Hayatidir!

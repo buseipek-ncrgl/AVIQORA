@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AVIQORA Airways</string>
+    <string name="title_activity_main">AVIQORA Airways</string>
+    <string name="package_name">com.aviqora.airways</string>
+    <string name="custom_url_scheme">com.aviqora.airways</string>
+</resources>

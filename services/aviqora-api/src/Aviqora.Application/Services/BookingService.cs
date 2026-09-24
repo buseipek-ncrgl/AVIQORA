@@ -1,3 +1,4 @@
+using Aviqora.Application.Common.Events;
 using Aviqora.Application.Common.Interfaces;
 using Aviqora.Application.DTOs;
 using Aviqora.Domain.Entities;
@@ -9,11 +10,13 @@ public class BookingService : IBookingService
 {
     private readonly IBookingRepository _bookingRepository;
     private readonly IFlightRepository _flightRepository;
+    private readonly IEventBus _eventBus;
 
-    public BookingService(IBookingRepository bookingRepository, IFlightRepository flightRepository)
+    public BookingService(IBookingRepository bookingRepository, IFlightRepository flightRepository, IEventBus eventBus)
     {
         _bookingRepository = bookingRepository;
         _flightRepository = flightRepository;
+        _eventBus = eventBus;
     }
 
     public async Task<BookingResponseDto> CreateBookingAsync(CreateBookingRequestDto request, CancellationToken cancellationToken = default)
@@ -51,9 +54,7 @@ public class BookingService : IBookingService
             totalAmount = totalAmount.Add(passengerPrice);
         }
 
-        // 10 dakikalık varsayılan tutma süresi ile Booking oluştur
         var booking = new Booking(flight.Id, totalAmount, holdDurationMinutes: 10);
-        booking.Hold();
 
         foreach (var passengerReq in request.Passengers)
         {
@@ -67,7 +68,25 @@ public class BookingService : IBookingService
             booking.AddPassenger(passenger, passengerReq.SelectedSeatId);
         }
 
+        booking.Hold(); // Bilet 10 dakikalığına tutuldu (Initial state)!
+
         await _bookingRepository.AddAsync(booking, cancellationToken);
+
+        // Olay Odaklı Mimari (Event-Driven): RabbitMQ Mesaj Kuyruğuna Olay Fırlatma (Publish)
+        var firstPassenger = request.Passengers.First();
+        var confirmedEvent = new BookingConfirmedEvent(
+            BookingId: booking.Id,
+            PnrCode: booking.PNR.Value,
+            PassengerName: $"{firstPassenger.FirstName} {firstPassenger.LastName}",
+            PassengerEmail: firstPassenger.Email,
+            FlightNumber: flight.FlightNumber,
+            SeatCode: "1A",
+            TotalAmount: booking.TotalAmount.Amount,
+            Currency: booking.TotalAmount.Currency,
+            ConfirmedAt: DateTime.UtcNow
+        );
+
+        await _eventBus.PublishAsync(confirmedEvent, cancellationToken);
 
         return MapToBookingResponseDto(booking, flight);
     }
