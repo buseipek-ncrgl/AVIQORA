@@ -1,0 +1,6 @@
+# GitHub Linguist Language Definitions
+infrastructure/docker/Dockerfile.api linguist-language=Dockerfile
+infrastructure/docker/Dockerfile.web linguist-language=Dockerfile
+Dockerfile linguist-language=Dockerfile
+*.yml linguist-detectable=true
+*.yaml linguist-detectable=true

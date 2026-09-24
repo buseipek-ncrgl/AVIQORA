@@ -414,5 +414,40 @@ npm run dev
 
 ---
 
+## 🐳 Docker & ☸️ Kubernetes Deployment Guide
+
+### 🐳 1. Docker Compose (Full-Stack Container Orchestration)
+To spin up the entire microservices ecosystem (Next.js Web, .NET 9 API, PostgreSQL, Redis, RabbitMQ) in containerized mode:
+
+```bash
+# Build and start all services in detached mode
+docker-compose -f infrastructure/docker/docker-compose.yml up --build -d
+
+# View real-time container logs
+docker-compose -f infrastructure/docker/docker-compose.yml logs -f
+
+# Stop and remove containers
+docker-compose -f infrastructure/docker/docker-compose.yml down
+```
+
+### ☸️ 2. Kubernetes Production Deployment (EKS / AKS / Minikube)
+Deploy auto-scaling production workloads with Horizontal Pod Autoscaler (HPA) and Ingress controllers:
+
+```bash
+# Apply all Kubernetes manifests (Deployments, Services, HPA, Ingress)
+kubectl apply -f infrastructure/k8s/
+
+# Verify cluster pod status
+kubectl get pods -l app=aviqora
+
+# Check Horizontal Pod Autoscaler (HPA) status
+kubectl get hpa
+
+# Stream API logs from Kubernetes pod
+kubectl logs -f deployment/aviqora-api-deployment
+```
+
+---
+
 ## 📜 License
 Distributed under the **MIT License**. See [LICENSE](LICENSE) for details.
